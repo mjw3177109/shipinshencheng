@@ -1,0 +1,44 @@
+name: Publish MiniMax H3 to Kaggle
+
+on:
+  workflow_dispatch:
+    inputs:
+      kaggle_username:
+        description: "Kaggle account username (optional for introspectable tokens)"
+        required: false
+        type: string
+      run_video:
+        description: "Launch the notebook with Kaggle T4 x2 after uploading (uses GPU quota)"
+        required: true
+        default: true
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: kaggle-h3-publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Kaggle CLI
+        run: python -m pip install --disable-pip-version-check "kaggle>=1.7" "requests>=2.31"
+
+      - name: Upload private H3 Notebook to Kaggle
+        env:
+          SHIPIN_KAGGLE_CREDENTIAL: ${{ secrets.shipin }}
+          KAGGLE_USERNAME_OVERRIDE: ${{ inputs.kaggle_username }}
+          KAGGLE_RUN_VIDEO: ${{ inputs.run_video }}
+        run: python kaggle/publish_to_kaggle.py
