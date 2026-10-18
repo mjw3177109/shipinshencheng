@@ -41,3 +41,35 @@ with tempfile.TemporaryDirectory() as d:
             print(path.name, json.dumps(clean,ensure_ascii=False))
         except (OSError,ValueError) as e:
             print(path.name,"unreadable",type(e).__name__)
+
+
+# Only look at compiler diagnostics, never print unfiltered private build logs.
+with tempfile.TemporaryDirectory() as d:
+    cmd = [sys.executable, "-m", "kaggle", "kernels", "output", kernel,
+           "-p", d, "--file-pattern",
+           r".*(?:build_config|build|ultra_render)\.log$", "-o"]
+    proc = subprocess.run(cmd, env=env, text=True, capture_output=True, timeout=120)
+    print("BUILD_LOG_DOWNLOAD_EXIT:", proc.returncode)
+    files = sorted(x for x in Path(d).rglob("*.log")
+                   if x.name in {"build.log","build_config.log","ultra_render.log"})
+    print("BUILD_LOGS_FOUND:", [x.name for x in files])
+    patterns = re.compile(
+        r"(?i)(?:\berror:|\bfatal error\b|CMake Error|"
+        r"Could NOT find|undefined reference|failed to|"
+        r"not found|unrecognized command|unsupported gpu architecture|"
+        r"nvcc fatal|No rule to make target|\[.*Error \d+\]|"
+        r"missing.*dependency|ninja.*failed)")
+    for f in files:
+        raw = f.read_text(encoding="utf-8",errors="replace")
+        keep = []
+        for line in raw.splitlines():
+            if patterns.search(line):
+                line = sanitize(line)
+                if re.search(r"(?i)(secret|token|password|authorization|key\s*[:=])",line):
+                    continue
+                keep.append(line[:300])
+        print("LOG_DIAGNOSTICS:", f.name)
+        for line in list(dict.fromkeys(keep))[-20:]:
+            print("*",line)
+        if not keep:
+            print("* No recognized build error line. Total bytes:",len(raw))
