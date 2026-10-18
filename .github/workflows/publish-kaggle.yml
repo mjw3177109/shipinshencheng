@@ -5,6 +5,8 @@ on:
     branches: [main]
     paths:
       - '.github/workflows/publish-kaggle.yml'
+      - 'kaggle/MiniMax_H3_Kaggle_T4x2_AutoVideo.ipynb'
+      - 'kaggle/ultra_gguf_h3.py'
   workflow_dispatch:
     inputs:
       kaggle_username:
