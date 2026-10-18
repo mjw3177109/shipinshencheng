@@ -3,7 +3,7 @@ name: Read Kaggle H3 Failure Reports
 on:
   push:
     branches: [main]
-    paths: ['.github/workflows/read-kaggle-reports.yml']
+    paths: ['.github/workflows/read-kaggle-reports.yml', 'kaggle/read_kaggle_reports.py']
   workflow_dispatch:
 
 permissions:
