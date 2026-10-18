@@ -22,3 +22,13 @@
 - 查看 Actions 作业日志以获得 Kaggle Notebook 链接。**Github 工作流提交成功与 Kaggle 视频渲染成功是两回事**；需在 Kaggle 的 Runs/Output 查看任务是否完成。
 
 > Kaggle Notebook 中同名的 Secret 不会自动变成 GitHub Actions Secret。若 `shipin` 只配置在 Kaggle，请在本仓库也单独配置 Actions Secret；不要把密钥发到聊天、提交进源码或粘贴到公开 Issue。
+
+## 2026-10-18：三个真实工作流接入与 Kaggle 验收
+
+- 参考 API 工作流：[`workflows/source/t2v.json`](workflows/source/t2v.json)、[`i2v.json`](workflows/source/i2v.json)、[`r2v.json`](workflows/source/r2v.json)。
+- Notebook 默认 **T2V**（用于第一次无需图片的短测试）；I2V/R2V 不会被偷换。对应参考图放入 Kaggle `/kaggle/working/h3_inputs/`，文件名与 JSON 保持一致。
+- 启动脚本 `kaggle/bootstrap_h3.py` 按模式下载不同模型；`kaggle/run_from_sources.py` 读取原始工作流提示词并在 ComfyUI API 上编译/提交当前模式的低显存测试图。
+- GPU 策略：申请 Kaggle T4 ×2，但 ComfyUI 单次推理使用 GPU0。**GPU1 尚未作为同一视频的分布式计算 GPU**。
+- 下载体积按 Hugging Face 模型元数据检查；Kaggle 本地磁盘或主机 RAM 不足时可能报错。MP4、日志、`render_report.json` 置于 `/kaggle/working/h3_videos/`。
+- [首次上传并启动的 GitHub Actions 记录](https://github.com/mjw3177109/shipinshencheng/actions/runs/39120091506)；[Kaggle 私有 Notebook](https://www.kaggle.com/code/mjw3177109/minimax-h3-t4x2-shipin)。上传成功不代表 MP4 已生成。
+- [只读取 Kaggle 任务状态](https://github.com/mjw3177109/shipinshencheng/actions/workflows/check-kaggle.yml)：不会重新提交 GPU 计算任务。
