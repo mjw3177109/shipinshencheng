@@ -1,0 +1,25 @@
+name: Diagnose Kaggle H3 Error
+
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/diagnose-kaggle.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install -q "kaggle>=2.2" requests
+      - name: Read Kaggle error signatures without rerunning GPU
+        env:
+          SHIPIN_KAGGLE_CREDENTIAL: ${{ secrets.shipin }}
+        run: python -u kaggle/diagnose_kaggle.py
