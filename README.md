@@ -12,3 +12,13 @@
 - **GitHub 仓库存放代码和 Notebook，不适合直接上传视频和大模型**。最终 MP4 存在 Kaggle Output，需要用户自行下载或另外配置存储。
 
 本仓库不会收集 Kaggle 密钥，不启用无密码公网隧道。仅在合规范围内使用模型。
+
+## 从 GitHub 推送并运行 Kaggle
+
+- 入口：[`Publish MiniMax H3 to Kaggle`](https://github.com/mjw3177109/shipinshencheng/actions/workflows/publish-kaggle.yml)。
+- 在本仓库的 **Settings → Secrets and variables → Actions → Repository secrets** 配置名称**完全一致**的 Secret：`shipin`（值为 Kaggle API Token，而不是凭据名称）。
+- 选择 **Run workflow**。个人 Token 可以在输入框 `kaggle_username` 填 Kaggle 用户名；若已能通过 Token introspection 解析用户名，也可以留空。
+- `run_video = true` 会推送 Notebook 并请求 T4×2 实际运行；`false` 只上传，不执行 Notebook。仓库代码不包含 Token。
+- 查看 Actions 作业日志以获得 Kaggle Notebook 链接。**Github 工作流提交成功与 Kaggle 视频渲染成功是两回事**；需在 Kaggle 的 Runs/Output 查看任务是否完成。
+
+> Kaggle Notebook 中同名的 Secret 不会自动变成 GitHub Actions Secret。若 `shipin` 只配置在 Kaggle，请在本仓库也单独配置 Actions Secret；不要把密钥发到聊天、提交进源码或粘贴到公开 Issue。
