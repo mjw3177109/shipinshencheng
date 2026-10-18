@@ -81,7 +81,7 @@ def publish() -> None:
         raise RuntimeError("Notebook has invalid or empty structure.")
     env, username = load_credentials()
     print(f"Kaggle target: {username}/{SLUG} (private)")
-    mode = os.getenv("KAGGLE_RUN_VIDEO", "true").lower()
+    mode = (os.getenv("KAGGLE_RUN_VIDEO") or "true").lower()
     if mode not in ("true", "false"):
         raise RuntimeError("KAGGLE_RUN_VIDEO must be true or false")
 
@@ -90,7 +90,7 @@ def publish() -> None:
         shutil.copy2(NOTEBOOK, dest / NOTEBOOK.name)
         metadata = {
             "id": f"{username}/{SLUG}",
-            "title": "MiniMax H3 T4x2 Auto Video",
+            "title": "minimax h3 t4x2 shipin",
             "code_file": NOTEBOOK.name,
             "language": "python",
             "kernel_type": "notebook",
@@ -117,6 +117,11 @@ def publish() -> None:
         subprocess.run(command, env=env, check=True, timeout=600)
         print(f"Kaggle URL: https://www.kaggle.com/code/{username}/{SLUG}")
         print("Submitted notebook. Kaggle GPU inference status is not verified.")
+        try:
+            stat = subprocess.run([sys.executable,"-m","kaggle","kernels","status",f"{username}/{SLUG}"], env=env, capture_output=True, text=True, timeout=45)
+            print("Kaggle kernel status:", (stat.stdout or stat.stderr)[:1000])
+        except Exception as e:
+            print("Could not query immediate kernel status:",type(e).__name__)
 
 
 if __name__ == "__main__":
