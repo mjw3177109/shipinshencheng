@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - '.github/workflows/validate-h3-ultra.yml'
+      - 'kaggle/ultra_gguf_h3.py'
   workflow_dispatch:
 
 permissions:
