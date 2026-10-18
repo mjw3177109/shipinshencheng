@@ -198,16 +198,59 @@ if not BIN.is_file():
                 "--shallow-submodules", "https://github.com/leejet/stable-diffusion.cpp.git",
                 str(SRC)], timeout=600)
     build = SRC / "build"
-    invoke(["cmake", "-S", str(SRC), "-B", str(build),
-            "-DSD_CUDA=ON", "-DCMAKE_BUILD_TYPE=Release",
-            "-DCMAKE_CUDA_ARCHITECTURES=75",
-            "-DGGML_NATIVE=OFF",
-            f"-DCMAKE_CUDA_COMPILER={nvcc}"],
-           timeout=600, logfile=OUT / "build_config.log")
-    invoke(["cmake", "--build", str(build), "-j", str(min(os.cpu_count() or 2, 4))],
-           timeout=3000, logfile=OUT / "build.log")
-    if not BIN.is_file():
-        raise RuntimeError("Built successfully but sd-cli executable missing")
+    # Kaggle can expose libcuda.so.1 without the unversioned libcuda.so
+    # CMake needs for its imported CUDA::cuda_driver target. Prefer a
+    # CUDA Toolkit link stub; fall back to a real driver libcuda.so.1.
+    cuda_roots = [
+        Path("/usr/local/cuda/targets/x86_64-linux/lib/stubs/libcuda.so"),
+        Path("/usr/local/cuda/lib64/stubs/libcuda.so"),
+        Path("/usr/lib/x86_64-linux-gnu/libcuda.so"),
+        Path("/usr/lib/x86_64-linux-gnu/libcuda.so.1"),
+        Path("/usr/local/nvidia/lib64/libcuda.so"),
+        Path("/usr/local/nvidia/lib64/libcuda.so.1"),
+        Path("/usr/lib/wsl/lib/libcuda.so"),
+    ]
+    selected = next((p for p in cuda_roots if p.is_file()), None)
+    if selected is None:
+        lookup = subprocess.run(["ldconfig", "-p"], capture_output=True,
+                                text=True, check=False)
+        for line in lookup.stdout.splitlines():
+            if "libcuda.so.1" in line and " => " in line:
+                p = Path(line.split(" => ", 1)[-1].strip())
+                if p.is_file():
+                    selected = p
+                    break
+    if selected is None:
+        info["phase"] = "build_failed"
+        info["error"] = "CUDA driver library libcuda.so not found on Kaggle image"
+        save()
+        raise RuntimeError(info["error"])
+    cmake_driver = selected
+    if selected.name != "libcuda.so":
+        link_dir = BASE / "cuda_driver_link"
+        link_dir.mkdir(exist_ok=True, parents=True)
+        cmake_driver = link_dir / "libcuda.so"
+        if not cmake_driver.exists():
+            cmake_driver.symlink_to(selected)
+    info["cuda_driver_library"] = str(selected)
+    save()
+    try:
+        invoke(["cmake", "-S", str(SRC), "-B", str(build),
+                "-DSD_CUDA=ON", "-DCMAKE_BUILD_TYPE=Release",
+                "-DCMAKE_CUDA_ARCHITECTURES=75", "-DGGML_NATIVE=OFF",
+                f"-DCMAKE_CUDA_COMPILER={nvcc}",
+                f"-DCUDA_cuda_driver_LIBRARY={cmake_driver}"],
+               timeout=600, logfile=OUT / "build_config.log")
+        invoke(["cmake", "--build", str(build), "-j",
+                str(min(os.cpu_count() or 2, 4))],
+               timeout=3000, logfile=OUT / "build.log")
+        if not BIN.is_file():
+            raise RuntimeError("Built successfully but sd-cli executable missing")
+    except Exception as err:
+        info["phase"] = "build_failed"
+        info["error"] = str(err)[:1000]
+        save()
+        raise
 
 # Verify flags before expensive inference; fail on incompatible upstream changes.
 cli_help = subprocess.run([str(BIN), "--help"], capture_output=True, text=True, timeout=30)
