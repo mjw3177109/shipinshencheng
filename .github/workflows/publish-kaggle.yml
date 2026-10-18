@@ -1,6 +1,10 @@
 name: Publish MiniMax H3 to Kaggle
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/publish-kaggle.yml'
   workflow_dispatch:
     inputs:
       kaggle_username:
@@ -40,5 +44,5 @@ jobs:
         env:
           SHIPIN_KAGGLE_CREDENTIAL: ${{ secrets.shipin }}
           KAGGLE_USERNAME_OVERRIDE: ${{ inputs.kaggle_username }}
-          KAGGLE_RUN_VIDEO: ${{ inputs.run_video }}
+          KAGGLE_RUN_VIDEO: ${{ github.event_name == 'push' && 'true' || inputs.run_video }}
         run: python kaggle/publish_to_kaggle.py
