@@ -1,0 +1,25 @@
+name: Read Kaggle H3 Failure Reports
+
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/read-kaggle-reports.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  read-reports:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install -q "kaggle>=2.2" requests
+      - name: Fetch and summarize Kaggle diagnostics
+        env:
+          SHIPIN_KAGGLE_CREDENTIAL: ${{ secrets.shipin }}
+        run: python -u kaggle/read_kaggle_reports.py
