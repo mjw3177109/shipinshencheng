@@ -6,6 +6,7 @@ import shutil
 import subprocess
 import sys
 import json
+from model_profiles import REPO_ID, model_files, selected_profile
 
 MODES = ("t2v", "i2v", "r2v")
 MODE = os.environ.get("H3_MODE", "t2v").lower()
@@ -55,43 +56,55 @@ Path("/kaggle/working/h3_preflight.json").write_text(
     json.dumps(probe, ensure_ascii=False, indent=2), encoding="utf-8")
 print("Kaggle resource preflight:", json.dumps(probe, ensure_ascii=False), flush=True)
 
-REPO = "Comfy-Org/MiniMax-H3"
-MODEL = ("diffusion_models/minimax_h3_ref2va_pruned_int8_convrot.safetensors"
-         if MODE == "r2v" else
-         "diffusion_models/minimax_h3_fl2va_pruned_int8_convrot.safetensors")
-VAE = ("vae/minimax_h3_video_vae_fp16.safetensors" if MODE == "r2v"
-       else "vae/minimax_h3_video_vae_int8_convrot.safetensors")
-files = [
-    MODEL,
-    "text_encoders/qwen3vl_32b_minimax_h3_int8_convrot.safetensors",
-    VAE,
-    "vae/minimax_h3_audio_vae_fp32.safetensors",
-]
-if os.getenv("H3_TURBO", "1") == "1":
-    files += [("loras/minimax_h3_ref2v_turbo_4step_v0.1_comfyui_bf16.safetensors"
-               if MODE == "r2v" else
-               "loras/minimax_h3_fl2v_turbo_8step_v1.0_comfyui_bf16.safetensors")]
 
-# Use local_dir, which avoids storing a second complete model in a global HF snapshot cache.
+PROFILE = selected_profile()
+TURBO = os.environ.get("H3_TURBO", "1") == "1"
+filemap = model_files(MODE, PROFILE, TURBO)
+files = list(filemap.values())
+print(f"H3 storage profile={PROFILE} mode={MODE} turbo={TURBO}", flush=True)
+if PROFILE == "experimental-w6a8":
+    print("WARNING: W6A8 is experimental on T4 and can require newer CUDA/ComfyUI.", flush=True)
+
+# Do not fetch all model variants. T2V and I2V share the same FL2VA files.
+# R2V downloads a separate diffusion model only when selected.
 os.environ["HF_HOME"] = str(BASE / "huggingface")
 models = COMFY / "models"
 needed = 0
+details = []
 for name in files:
     target = models / name
-    if target.is_file() and target.stat().st_size > 1024 * 1024:
-        continue
-    metadata = get_hf_file_metadata(hf_hub_url(REPO, name), timeout=45)
-    needed += metadata.size or 0
+    metadata = get_hf_file_metadata(hf_hub_url(REPO_ID, name), timeout=45)
+    remote_bytes = int(metadata.size or 0)
+    if remote_bytes <= 0:
+        raise RuntimeError(f"Hugging Face did not provide file size: {name}")
+    exists = target.is_file() and target.stat().st_size == remote_bytes
+    remaining = 0 if exists else remote_bytes
+    needed += remaining
+    details.append({"name": name, "remote_gb": round(remote_bytes / 1e9, 2),
+                    "already_present": exists})
 free = shutil.disk_usage(BASE).free
 reserve = 6 * 1024**3
+probe.update({
+    "storage_profile": PROFILE,
+    "expected_download_gib": round(needed / 1024**3, 2),
+    "required_free_with_reserve_gib": round((needed + reserve) / 1024**3, 2),
+    "downloads": details,
+})
+Path("/kaggle/working/h3_preflight.json").write_text(
+    json.dumps(probe, ensure_ascii=False, indent=2), encoding="utf-8")
 print(f"Model download estimate: {needed/1024**3:.1f} GiB; "
       f"disk free: {free/1024**3:.1f} GiB; reserve: {reserve/1024**3:.1f} GiB")
 if free < needed + reserve:
-    raise RuntimeError("Not enough free disk space for this mode. "
-                       "Use only T2V/I2V first, clean temp storage, or attach a dataset.")
+    raise RuntimeError(
+        f"Insufficient scratch storage for {MODE}/{PROFILE}: need "
+        f"{(needed + reserve)/1024**3:.1f} GiB free, "
+        f"found {free/1024**3:.1f} GiB. "
+        "Switch to a smaller profile or attach a supported model dataset. "
+        "Never assume 20GB of saved /kaggle/working storage can hold H3."
+    )
 
 for name in files:
     print("Model:", name, flush=True)
-    hf_hub_download(repo_id=REPO, filename=name, local_dir=str(models),
+    hf_hub_download(repo_id=REPO_ID, filename=name, local_dir=str(models),
                     token=os.environ.get("HF_TOKEN"))
-print(f"MODE={MODE} setup complete. Model files are local to {models}.")
+print(f"MODE={MODE} PROFILE={PROFILE} ready. Model files: {models}.")
