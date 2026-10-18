@@ -73,3 +73,14 @@ with tempfile.TemporaryDirectory() as d:
             print("*",line)
         if not keep:
             print("* No recognized build error line. Total bytes:",len(raw))
+
+
+        if f.name == "build_config.log":
+            lines = raw.splitlines()
+            for idx, line in enumerate(lines):
+                if "CMake Error" not in line:
+                    continue
+                print("CMAKE_ERROR_CONTEXT:")
+                for detail in lines[idx:idx + 7]:
+                    if not re.search(r"(?i)(secret|password|authorization|api.?key|token\s*[:=])", detail):
+                        print(">", sanitize(detail)[:300])
