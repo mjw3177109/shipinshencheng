@@ -55,3 +55,30 @@
 - https://huggingface.co/Comfy-Org/MiniMax-H3/tree/main/vae
 - https://www.kaggle.com/docs/notebooks
 - https://github.com/kyuz0/ComfyUI-GGUF-H3
+
+## Ultra-Q2 GGUF 超小版（默认，新增 2026-10-18）
+
+最新 Notebook 默认 `BACKEND='ultra-q2'`，用于替代此前约 42GB 的 ComfyUI Compact 版。它使用 **stable-diffusion.cpp** 的 GGUF H3 推理后端（不是把 GGUF 直接交给原 UNETLoader），从原 JSON 读取提示词和图片连接。**T2V/I2V 只用 FL2VA、R2V 只用 Ref2VA，不换模式。**
+
+| 部分 | 仓库 / 文件 | 预计权重大小 |
+| --- | --- | ---: |
+| FL2VA DiT | `unsloth/MiniMax-H3-GGUF / minimax_h3_fl2va_pruned-Q2_K.gguf` | 6.26 GiB |
+| R2V DiT（仅 R2V 时下载，不能与 FL2VA 同时作为必须项） | `unsloth/MiniMax-H3-GGUF / minimax_h3_ref2va_pruned-Q2_K.gguf` | 6.22 GiB |
+| Qwen3-VL TE | `realrebelai/MiniMax-H3_GGUFs / qwen3vl-32B-MiniMax-H3-Q2_K.gguf` | 约 7.91 GiB |
+| 视频 VAE | `Comfy-Org/MiniMax-H3 / vae/minimax_h3_video_vae_fp16.safetensors` | 约 4.85 GiB |
+| 音频 VAE | `Comfy-Org/MiniMax-H3 / vae/minimax_h3_audio_vae_fp32.safetensors` | 约 0.56 GiB |
+| **仅一套模式合计** | **无 Turbo LoRA，20 采样步** | **约 19.6 GiB（21GB）** |
+
+- `kaggle/ultra_gguf_h3.py` 提供下载前远程文件元数据校验、磁盘预检、CUDA SM75 编译、两张 T4 的实验性分层计算和带音频的视频输出。
+- 多卡（实验）：`--backend diffusion=cuda0&cuda1,te=cpu,vae=cuda0`；此为 **stable-diffusion.cpp 真正支持的双设备 layer split**，不是两张卡显存自动合并。H3/T4 实际速度与稳定性仍需 Kaggle 实测；若不兼容，Notebook 的 `SINGLE_GPU=True` 可回到单卡。
+- 初次测试 `t2v`、384×224、22 帧、20 步。以后选 `i2v` 或 `r2v`，必须把原工作流指定的真实参考图片放入 `/kaggle/working/h3_inputs/`；不得用占位图片替代。
+- 模型及源码放到临时 `/kaggle/temp/h3_gguf_ultra/`；视频、构建日志、`ultra_report.json` 放到 `/kaggle/working/h3_videos/`。需要 **模型约 21GB + 编译及解压临时空间约 7GiB**，下载前检查 scratch 文件系统，不能保证 Kaggle 有足够空间和 RAM。
+- `BACKEND='comfy-compact'` 保留旧版 ComfyUI 运行方式，不会删原工作流。
+- 静态 CI: [Ultra Q2 验证](https://github.com/mjw3177109/shipinshencheng/actions/workflows/validate-h3-ultra.yml)；该结果不能取代 Kaggle GPU 验收。
+- 模型遵守 MiniMax H3 社区协议及相应量化来源许可证。Q2 会降低画质，尤其有文字细节时更明显。文档计算的数值为模型磁盘容量，非显存峰值。
+
+模型与双卡后端文档：
+- https://huggingface.co/unsloth/MiniMax-H3-GGUF
+- https://huggingface.co/realrebelai/MiniMax-H3_GGUFs
+- https://github.com/leejet/stable-diffusion.cpp/blob/master/docs/minimax_h3.md
+- https://github.com/leejet/stable-diffusion.cpp/blob/master/docs/backend.md
