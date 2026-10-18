@@ -32,3 +32,26 @@
 - 下载体积按 Hugging Face 模型元数据检查；Kaggle 本地磁盘或主机 RAM 不足时可能报错。MP4、日志、`render_report.json` 置于 `/kaggle/working/h3_videos/`。
 - [首次上传并启动的 GitHub Actions 记录](https://github.com/mjw3177109/shipinshencheng/actions/runs/39120091506)；[Kaggle 私有 Notebook](https://www.kaggle.com/code/mjw3177109/minimax-h3-t4x2-shipin)。上传成功不代表 MP4 已生成。
 - [只读取 Kaggle 任务状态](https://github.com/mjw3177109/shipinshencheng/actions/workflows/check-kaggle.yml)：不会重新提交 GPU 计算任务。
+
+## 小硬盘模式：Compact H3（2026-10-18 增量补丁）
+
+**默认开启** `H3_STORAGE_PROFILE=compact`。不需要重新输入 Kaggle Token，Notebook 在 Kaggle 启动后会先从本仓库获取最新版脚本。
+
+| 配置 | FL2VA/T2V/I2V 单模型全套大约大小 | 特点 |
+| --- | --- | --- |
+| `balanced` | 53.5 GB | 原配：INT8 DiT + INT8 Qwen3-VL 编码器 + INT8 视频 VAE |
+| **`compact`（默认）** | **42.0 GB** | INT8 DiT + 15.69GB NVFP4-AWQ 编码器 + INT8 视频 VAE |
+| `experimental-w6a8` | 37.0 GB | 改用 16GB W6A8 DiT；T4 兼容/速度未经验收 |
+
+以上是**模型文件磁盘体积估算**，不是显存或主机 RAM 用量。R2V `balanced` 原来还使用 5.21GB 的 fp16 视频 VAE，因此其原体积更大；`compact` 统一用 2.81GB INT8 视频 VAE。R2V 仍需自己的 Ref2VA 主模型，永不偷换成 I2V。Turbo LoRA 保留；如设 `H3_TURBO=0` 可少下载约 1.96GB，但采样步数恢复到 20，预计更慢。
+
+**Kaggle 限制：** 官方 Notebook 资源文档记录 T4×2 配置 **29GB CPU RAM**、`/kaggle/working` **20GB 自动保存空间**，另外有不持久化的 scratch 空间；所以即使精简到 37–42GB，也不代表一定能在免费 Kaggle 生成 H3。启动前 `h3_preflight.json` 将展示实际磁盘需求和可用空间，脚本会在下载前拒绝容量不足的任务。GPU0 单卡推理未变，GPU1 仍未参与同一片视频计算。
+
+**其他更小选项：** 社区另有 GGUF Q2/Q3 模型（约 6–9 GiB 扩散模型）及 GGUF 文本编码器（Q2 ~12.2 GiB），但要求另装兼容的 ComfyUI-GGUF-H3 加载器和重做 loader；不同 GGUF fork 对 diffusion K-quants 支持不一致，目前**未启用**，不把它当成稳定视频生产模式。
+
+参考来源：
+- https://huggingface.co/Comfy-Org/MiniMax-H3/tree/main/diffusion_models
+- https://huggingface.co/Comfy-Org/MiniMax-H3/tree/main/text_encoders
+- https://huggingface.co/Comfy-Org/MiniMax-H3/tree/main/vae
+- https://www.kaggle.com/docs/notebooks
+- https://github.com/kyuz0/ComfyUI-GGUF-H3
