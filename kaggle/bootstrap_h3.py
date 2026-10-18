@@ -5,6 +5,7 @@ from pathlib import Path
 import shutil
 import subprocess
 import sys
+import json
 
 MODES = ("t2v", "i2v", "r2v")
 MODE = os.environ.get("H3_MODE", "t2v").lower()
@@ -35,6 +36,24 @@ subprocess.run([sys.executable, "-m", "pip", "install", "-q",
                 "huggingface_hub>=0.28", "requests", "psutil", "pillow"], check=True)
 
 from huggingface_hub import hf_hub_download, hf_hub_url, get_hf_file_metadata
+
+# Persist non-sensitive hardware facts before downloading large checkpoints.
+import psutil
+probe = {
+    "mode": MODE,
+    "cpu_ram_gib": round(psutil.virtual_memory().total / 1024**3, 2),
+    "available_ram_gib": round(psutil.virtual_memory().available / 1024**3, 2),
+    "scratch_free_gib": round(shutil.disk_usage(BASE).free / 1024**3, 2),
+    "gpu_count": int(devices) if "devices" in locals() else None,
+    "notes": [
+        "ComfyUI inference currently uses GPU0 only.",
+        "Kaggle T4x2 host RAM can be below the 32-64GiB low-VRAM reference.",
+        "An overlay filesystem may over-report true remaining writable disk.",
+    ],
+}
+Path("/kaggle/working/h3_preflight.json").write_text(
+    json.dumps(probe, ensure_ascii=False, indent=2), encoding="utf-8")
+print("Kaggle resource preflight:", json.dumps(probe, ensure_ascii=False), flush=True)
 
 REPO = "Comfy-Org/MiniMax-H3"
 MODEL = ("diffusion_models/minimax_h3_ref2va_pruned_int8_convrot.safetensors"
