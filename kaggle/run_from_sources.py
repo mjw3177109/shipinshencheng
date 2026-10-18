@@ -15,6 +15,7 @@ import time
 import uuid
 
 import requests
+from model_profiles import model_files, selected_profile, workflow_names
 
 ROOT = Path(__file__).resolve().parents[1]
 MODE = os.environ.get("H3_MODE", "t2v").lower()
@@ -74,14 +75,12 @@ for name in images:
     (COMFY / "input").mkdir(parents=True, exist_ok=True)
     shutil.copy2(p, COMFY / "input" / name)
 
-model = ("minimax_h3_ref2va_pruned_int8_convrot.safetensors"
-         if MODE == "r2v" else
-         "minimax_h3_fl2va_pruned_int8_convrot.safetensors")
-video_vae = ("minimax_h3_video_vae_fp16.safetensors" if MODE == "r2v"
-             else "minimax_h3_video_vae_int8_convrot.safetensors")
-lora = ("minimax_h3_ref2v_turbo_4step_v0.1_comfyui_bf16.safetensors"
-        if MODE == "r2v" else
-        "minimax_h3_fl2v_turbo_8step_v1.0_comfyui_bf16.safetensors")
+PROFILE = selected_profile()
+name_map = workflow_names(model_files(MODE, PROFILE, TURBO))
+model = name_map["diffusion_model"]
+video_vae = name_map["video_vae"]
+text_encoder = name_map["text_encoder"]
+lora = name_map.get("turbo_lora")
 steps = (4 if MODE == "r2v" else 8) if TURBO else 20
 
 P = {}
@@ -89,7 +88,7 @@ def node(id_, typ, **inputs):
     P[str(id_)] = {"class_type": typ, "inputs": inputs}
 
 node(1, "UNETLoader", unet_name=model, weight_dtype="default")
-node(2, "CLIPLoader", clip_name="qwen3vl_32b_minimax_h3_int8_convrot.safetensors",
+node(2, "CLIPLoader", clip_name=text_encoder,
      type="minimax", device="default")
 node(3, "VAELoader", vae_name=video_vae)
 node(4, "VAELoader", vae_name="minimax_h3_audio_vae_fp32.safetensors")
@@ -133,6 +132,8 @@ status = {
     "width": WIDTH, "height": HEIGHT, "frames": FRAMES,
     "gpu_strategy": "GPU0 single-device inference; GPU1 not combined",
     "source_workflow": str(SOURCE.relative_to(ROOT)),
+    "storage_profile": PROFILE,
+    "selected_model_files": name_map,
     "reference_images": images, "status": "pending",
 }
 def persist():
