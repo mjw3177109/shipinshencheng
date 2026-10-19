@@ -1,12 +1,6 @@
 name: Publish MiniMax H3 to Kaggle
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - '.github/workflows/publish-kaggle.yml'
-      - 'kaggle/MiniMax_H3_Kaggle_T4x2_AutoVideo.ipynb'
-      - 'kaggle/ultra_gguf_h3.py'
   workflow_dispatch:
     inputs:
       kaggle_username:
@@ -16,7 +10,7 @@ on:
       run_video:
         description: "Launch the notebook with Kaggle T4 x2 after uploading (uses GPU quota)"
         required: true
-        default: true
+        default: false
         type: boolean
 
 permissions:
@@ -46,5 +40,5 @@ jobs:
         env:
           SHIPIN_KAGGLE_CREDENTIAL: ${{ secrets.shipin }}
           KAGGLE_USERNAME_OVERRIDE: ${{ inputs.kaggle_username }}
-          KAGGLE_RUN_VIDEO: ${{ github.event_name == 'push' && 'true' || inputs.run_video }}
+          KAGGLE_RUN_VIDEO: ${{ inputs.run_video }}
         run: python kaggle/publish_to_kaggle.py
